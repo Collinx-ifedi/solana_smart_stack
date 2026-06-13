@@ -20,8 +20,8 @@ solana-transaction-status = "1.18"
 solana-account-decoder = "1.18"
 
 # Real-time Network Streaming (Locked to 1.14 to resolve proto and TLS struct conflicts)
-yellowstone-grpc-client = "1.14"
-yellowstone-grpc-proto = "1.14"
+yellowstone-grpc-client = "1.15"
+yellowstone-grpc-proto = "1.15"
 
 # External HTTP & Serialization
 reqwest = { version = "0.12.0", default-features = false, features = ["json", "rustls-tls", "charset"] }
@@ -38,10 +38,6 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }
 rand = "0.8.5"
 
-[patch.crates-io]
-# This explicitly overrides the broken curve dependencies deep in the tree 
-# to force zeroize compatibility across the entire graph.
-curve25519-dalek = { git = "https://github.com/solana-labs/curve25519-dalek.git", branch = "bpf-v4" }
 # =========================================================
 # PRODUCTION COMPILER PROFILES (LATENCY & SIZE OPTIMIZATIONS)
 # =========================================================
