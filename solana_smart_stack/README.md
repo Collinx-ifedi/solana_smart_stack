@@ -36,10 +36,13 @@ View autonomous recovery traces:
 cat lifecycle.log
     
 🧠 FAQ: Infrastructure & Networking
+
 ​Q1: What is the significance of the delta between "Processed" and "Confirmed" commitments in high-frequency trading?
 ​Answer: "Processed" indicates the leader has included the transaction in a block. "Confirmed" signifies 66% stake consensus. High-frequency stacks use "Processed" for optimistic detection but must verify "Confirmed" or "Finalized" before finalizing profit-taking to avoid interacting with reverted states in a fork.
+
 ​Q2: What are the risks of using "Finalized" blockhashes in a high-concurrency MEV system?
 ​Answer: "Finalized" blockhashes ensure the block exists on the canonical chain, eliminating orphan risk. However, they are ~13+ seconds behind "Processed." In MEV, 13-second-old blockhashes are often too stale to be accepted by the block engine, leading to high transaction drop rates.
+
 ​Q3: Why are Jito bundles sometimes skipped by the Block Engine?
 ​Answer: Bundles are skipped due to:
 ​Contention: Referencing accounts modified by a higher-priority bundle in the same slot.
