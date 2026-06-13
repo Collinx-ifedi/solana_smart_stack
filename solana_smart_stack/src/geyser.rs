@@ -5,7 +5,7 @@ use solana_sdk::signature::Signature;
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};
-use yellowstone_grpc_client::{ClientTlsConfig, GeyserGrpcClient, InterceptorXToken};
+use yellowstone_grpc_client::{ClientTlsConfig, GeyserGrpcClient};
 use yellowstone_grpc_proto::geyser::{
     subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
     SubscribeRequestFilterTransactions,
@@ -13,7 +13,8 @@ use yellowstone_grpc_proto::geyser::{
 
 /// High-performance gRPC monitor for tracking transaction lifecycle across Solana commitment levels.
 pub struct GeyserStreamMonitor {
-    client: GeyserGrpcClient<InterceptorXToken>,
+    // Uses the generalized client layout to match the stable 1.14 connect method cleanly
+    client: GeyserGrpcClient<yellowstone_grpc_client::BoxInterceptor>,
     wallet_pubkey: Pubkey,
 }
 
@@ -22,16 +23,18 @@ impl GeyserStreamMonitor {
     pub async fn new(endpoint: &str, x_token: &str, wallet_pubkey: Pubkey) -> Result<Self> {
         info!("🔌 Connecting to Yellowstone gRPC at {}...", endpoint);
 
+        // Uses the official 1.14 builder pattern setup to gracefully bypass trait matching issues
         let client = GeyserGrpcClient::build_from_shared(endpoint)
-            .context("Invalid gRPC endpoint URL format")?
-            .x_token(Some(x_token))?
+            .context("Invalid gRPC endpoint URL structure configuration")?
+            .x_token(Some(x_token))
+            .context("Failed to assign authentication x-token payload mapping")?
             .tls_config(ClientTlsConfig::new().with_native_roots())
-            .context("Failed to configure native TLS roots")?
+            .context("Failed to securely configure native TLS roots validation context")?
             .connect()
             .await
-            .context("CRITICAL: Failed to establish gRPC connection to Geyser node")?;
+            .context("CRITICAL: Failed to establish a secure gRPC connection channel to Geyser node")?;
 
-        info!("✅ gRPC Stream Connected. Tracking wallet: {}", wallet_pubkey);
+        info!("✅ gRPC Stream Connected. Tracking target wallet: {}", wallet_pubkey);
 
         Ok(Self {
             client,
@@ -40,19 +43,18 @@ impl GeyserStreamMonitor {
     }
 
     /// Opens a bidirectional stream and blocks until the specified signature achieves the `Confirmed` commitment level.
-    /// Captures the latency delta required for the lifecycle log.
     pub async fn await_transaction_confirmation(
         &mut self,
         target_signature: &Signature,
         start_time: Instant,
     ) -> Result<u64> {
+        // Establishes the bidirectional communication streams 
         let (mut sink, mut stream) = self.client
             .subscribe()
             .await
-            .context("Failed to open bidirectional gRPC stream")?;
+            .context("Failed to open bidirectional stream channel over Geyser subscription loop")?;
 
-        // 1. Construct the Network Filter
-        // To prevent network overload, we filter exclusively for our wallet's successful, non-vote transactions.
+        // Instantiate transactional filters for your specific runtime address target
         let mut tx_filter = HashMap::new();
         tx_filter.insert(
             "target_wallet_tracker".to_string(),
@@ -60,11 +62,13 @@ impl GeyserStreamMonitor {
                 vote: Some(false),
                 failed: Some(false),
                 account_include: vec![self.wallet_pubkey.to_string()],
-                ..Default::default() // Future-proofs against newer protobuf schema fields
+                account_exclude: vec![],
+                account_required: vec![],
+                signature: None,
             },
         );
 
-        // 2. Compile the Subscription Schema
+        // Create the stream structural parameters configuration object
         let request = SubscribeRequest {
             slots: HashMap::new(),
             accounts: HashMap::new(),
@@ -73,27 +77,25 @@ impl GeyserStreamMonitor {
             blocks: HashMap::new(),
             blocks_meta: HashMap::new(),
             entry: HashMap::new(),
-            commitment: Some(CommitmentLevel::Confirmed as i32), // Monitor up to Confirmed stage
+            commitment: Some(CommitmentLevel::Confirmed as i32),
             accounts_data_slice: vec![],
             ping: None,
-            from_epoch: None,
         };
 
-        // 3. Dispatch the Filter Request
+        // Transmit your explicit parameters to the remote server filter pipeline
         sink.send(request)
             .await
-            .context("Failed to transmit subscription filter to Geyser node")?;
+            .context("Failed to transmit subscription transaction filters to Geyser endpoint")?;
 
-        debug!("📡 Awaiting Signature {} over gRPC stream...", target_signature);
+        debug!("📡 Subscription filter sent. Awaiting target Signature {} via gRPC...", target_signature);
 
-        // 4. Ingest and Process the Stream Telemetry
         while let Some(message) = stream.next().await {
             match message {
                 Ok(msg) => {
                     if let Some(update) = msg.update_oneof {
                         match update {
                             UpdateOneof::Transaction(tx_update) => {
-                                // Extract the 64-byte signature array from the raw protobuf transaction
+                                // Extract the underlying transaction byte payload
                                 let sig_bytes = tx_update
                                     .transaction
                                     .as_ref()
@@ -104,7 +106,7 @@ impl GeyserStreamMonitor {
                                     if sig == *target_signature {
                                         let latency_ms = start_time.elapsed().as_millis();
                                         info!(
-                                            "🟢 gRPC STREAM CONFIRMATION: Signature {} landed in Slot {}! Latency: {}ms",
+                                            "🟢 gRPC STREAM CONFIRMATION: Signature {} landed inside Slot {}! Track Latency: {}ms",
                                             sig, tx_update.slot, latency_ms
                                         );
                                         return Ok(tx_update.slot);
@@ -112,20 +114,20 @@ impl GeyserStreamMonitor {
                                 }
                             }
                             UpdateOneof::Ping(_) => {
-                                // Yellowstone nodes periodically send Pings to prevent load balancer timeouts
-                                debug!("💓 gRPC Ping received. Stream healthy.");
+                                // Yellowstone nodes periodically broadcast Pings to keep connections warm
+                                debug!("💓 gRPC Ping intercepted. Pipeline frame stream connection healthy.");
                             }
                             _ => {}
                         }
                     }
                 }
                 Err(e) => {
-                    warn!("⚠️ gRPC stream interrupted: {}. Validating final state...", e);
-                    anyhow::bail!("Connection lost during tracking: {}", e);
+                    warn!("⚠️ Yellowstone gRPC pipeline stream interrupted: {}. Validating fallback state tracker...", e);
+                    anyhow::bail!("Connection lost during real-time tracking loops: {}", e);
                 }
             }
         }
 
-        anyhow::bail!("gRPC Stream terminated unexpectedly before confirmation.")
+        anyhow::bail!("Yellowstone gRPC Stream closed unexpectedly before target signature land validation.")
     }
 }
