@@ -38,6 +38,10 @@ tracing = "0.1.40"
 tracing-subscriber = { version = "0.3.18", features = ["env-filter", "fmt", "json"] }
 rand = "0.8.5"
 
+[patch.crates-io]
+# This explicitly overrides the broken curve dependencies deep in the tree 
+# to force zeroize compatibility across the entire graph.
+curve25519-dalek = { git = "https://github.com/solana-labs/curve25519-dalek.git", branch = "bpf-v4" }
 # =========================================================
 # PRODUCTION COMPILER PROFILES (LATENCY & SIZE OPTIMIZATIONS)
 # =========================================================
