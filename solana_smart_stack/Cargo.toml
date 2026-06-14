@@ -19,7 +19,7 @@ solana-transaction-status = "=2.1.13"
 solana-account-decoder = "=2.1.13"
 # Yellowstone Geyser (Matched exactly to Triton's official repository matrix definitions)
 yellowstone-grpc-client = "13.1.0"
-yellowstone-grpc-proto = "=12.4.0"
+yellowstone-grpc-proto = "=12.2.0"
 
 axum = "0.7"
 # External HTTP & Serialization
@@ -46,3 +46,6 @@ lto = "fat"            # Link Time Optimization across all crates
 codegen-units = 1      # Reduces parallel code generation in favor of execution speed
 panic = "abort"        # Drops the stack unwinding payload to save binary weight
 strip = true           # Removes debug symbols from the compiled executable to reduce size
+
+[patch.crates-io]
+alloc-stdlib = { git = "https://github.com/dropbox/rust-alloc-stdlib.git", rev = "09bebc9" }
