@@ -19,7 +19,7 @@ solana-sdk = "1.18.18"
 solana-client = "1.18.18"
 solana-transaction-status = "1.18.18"
 solana-account-decoder = "1.18.18"
-zeroize = "1.9"
+zeroize = "^1.9"
 # Yellowstone Geyser (Matched exactly to Triton's official repository matrix definitions)
 yellowstone-grpc-client = "13.1.0"
 yellowstone-grpc-proto = "12.4.0"
