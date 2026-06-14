@@ -2,7 +2,7 @@
 name = "solana_smart_stack"
 version = "0.1.0"
 edition = "2021"
-description = "Autonomous Jito Transaction Stack with gRPC Streaming"
+description = "Autonomous Jito Transaction Stack with Modern gRPC Streaming"
 publish = false
 
 [dependencies]
@@ -13,15 +13,16 @@ axum = "0.7"
 tokio = { version = "1.35", features = ["full", "tracing"] }
 futures-util = "0.3.30"
 
-# Solana Core Cryptography & RPC (Locked to 1.18 for strict stability)
-solana-sdk = "1.18"
-solana-client = "1.18"
-solana-transaction-status = "1.18"
-solana-account-decoder = "1.18"
+# Solana Core Cryptography & RPC 
+# (Aligned to v1.18.x to interface flawlessly with your existing RpcClient code)
+solana-sdk = "1.18.18"
+solana-client = "1.18.18"
+solana-transaction-status = "1.18.18"
+solana-account-decoder = "1.18.18"
 
-# Real-time Network Streaming (Locked to 1.14 to resolve proto and TLS struct conflicts)
-yellowstone-grpc-client
-yellowstone-grpc-proto
+# Yellowstone Geyser (Matched exactly to Triton's official repository matrix definitions)
+yellowstone-grpc-client = "13.1.0"
+yellowstone-grpc-proto = "12.4.0"
 
 # External HTTP & Serialization
 reqwest = { version = "0.12.0", default-features = false, features = ["json", "rustls-tls", "charset"] }
