@@ -5,7 +5,7 @@ use solana_sdk::signature::Signature;
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};
-use yellowstone_grpc_client::{ClientTlsConfig, GeyserGrpcClient};
+use yellowstone_grpc_client::GeyserGrpcClient;
 use yellowstone_grpc_proto::geyser::{
     subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
     SubscribeRequestFilterTransactions,
@@ -13,23 +13,21 @@ use yellowstone_grpc_proto::geyser::{
 
 /// High-performance gRPC monitor for tracking transaction lifecycle across Solana commitment levels.
 pub struct GeyserStreamMonitor {
-    // Uses the generalized client layout to match the stable 1.14 connect method cleanly
-    client: GeyserGrpcClient<yellowstone_grpc_client::BoxInterceptor>,
+    // Clean, simple layout exposed by the v13.1.0 client (No InterceptorXToken required)
+    client: GeyserGrpcClient,
     wallet_pubkey: Pubkey,
 }
 
 impl GeyserStreamMonitor {
-    /// Establishes a secure TLS connection to the Yellowstone Geyser endpoint.
+    /// Establishes a secure connection to the Yellowstone Geyser endpoint.
     pub async fn new(endpoint: &str, x_token: &str, wallet_pubkey: Pubkey) -> Result<Self> {
         info!("🔌 Connecting to Yellowstone gRPC at {}...", endpoint);
 
-        // Uses the official 1.14 builder pattern setup to gracefully bypass trait matching issues
-        let client = GeyserGrpcClient::build_from_shared(endpoint)
+        // Uses the modernized v13 builder pattern
+        let client = GeyserGrpcClient::build_from_shared(endpoint.to_string())
             .context("Invalid gRPC endpoint URL structure configuration")?
-            .x_token(Some(x_token))
+            .x_token(Some(x_token.to_string()))
             .context("Failed to assign authentication x-token payload mapping")?
-            .tls_config(ClientTlsConfig::new().with_native_roots())
-            .context("Failed to securely configure native TLS roots validation context")?
             .connect()
             .await
             .context("CRITICAL: Failed to establish a secure gRPC connection channel to Geyser node")?;
@@ -80,6 +78,7 @@ impl GeyserStreamMonitor {
             commitment: Some(CommitmentLevel::Confirmed as i32),
             accounts_data_slice: vec![],
             ping: None,
+            ..Default::default() // Gracefully handles proto expansion fields (like from_epoch) automatically
         };
 
         // Transmit your explicit parameters to the remote server filter pipeline
