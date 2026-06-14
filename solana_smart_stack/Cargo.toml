@@ -15,11 +15,10 @@ futures-util = "0.3.30"
 
 # Solana Core Cryptography & RPC 
 # (Aligned to v1.18.x to interface flawlessly with your existing RpcClient code)
-solana-sdk = "1.18.18"
-solana-client = "1.18.18"
-solana-transaction-status = "1.18.18"
-solana-account-decoder = "1.18.18"
-
+solana-sdk = "4"
+solana-client = "4"
+solana-transaction-status = "4"
+solana-account-decoder = "4"
 # Yellowstone Geyser (Matched exactly to Triton's official repository matrix definitions)
 yellowstone-grpc-client = "13.1.0"
 yellowstone-grpc-proto = "12.4.0"
