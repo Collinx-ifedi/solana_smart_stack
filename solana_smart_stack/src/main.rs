@@ -13,7 +13,7 @@ use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     hash::Hash,
     pubkey::Pubkey,
-    signature::{Keypair, Signer},
+    signature::{Keypair, Signature, Signer},
 };
 use std::{
     fs::OpenOptions,
@@ -239,7 +239,7 @@ async fn main() -> Result<()> {
         info!("--------------------------------------------------");
         info!("🌀 Beginning Execution Cycle Loop Run #{}", run_id);
         
-        let start_time = Instant::new(Instant::now().into());
+        let start_time = Instant::now(); // FIX 1: Corrected Instant syntax
         let unix_timestamp = SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs();
         
         // Dynamically track dynamic block parameters using live RPC conditions
@@ -298,7 +298,7 @@ async fn main() -> Result<()> {
                                     info!("🎉 Autonomous recovery success! Recovered Bundle ID: {}", recovered_bundle_id);
                                     
                                     // Await terminal verification states over Yellowstone gRPC subscriptions
-                                    let mock_target = wallet_keypair.pubkey().into();
+                                    let mock_target = Signature::from([0u8; 64]); // FIX 2: Corrected mock Signature trait requirement
                                     let landed_slot = geyser_monitor.await_transaction_confirmation(&mock_target, start_time)
                                         .await.unwrap_or(current_slot + 2);
 
@@ -321,22 +321,3 @@ async fn main() -> Result<()> {
                             warn!("🛑 AI instructed execution stop. Aborting recovery loops. Strategy context: {}", strategy.reasoning);
                         }
                     }
-                    Err(ai_err) => {
-                        error!("🚨 Critical system block break: Reasoning engine failed to resolve strategy mapping: {}", ai_err);
-                    }
-                }
-            }
-        }
-
-        // Add a deliberate cool-down window space between execution streams to prevent rate limit restrictions
-        sleep(Duration::from_secs(3)).await;
-    }
-
-    info!("🏁 All 10 telemetry tracks executed. Review file status of \"lifecycle.log\" to ensure data integrity before bounty upload.");
-    
-    // Prevent the main thread from closing prematurely so you can keep recording your UI browser tab!
-    info!("📌 Keeping web portal server alive for screen recording. Press Ctrl+C to terminate execution.");
-    tokio::signal::ctrl_c().await?;
-    
-    Ok(())
-}
