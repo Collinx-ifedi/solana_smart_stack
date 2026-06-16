@@ -6,22 +6,23 @@ description = "Autonomous Jito Transaction Stack with Modern gRPC Streaming"
 publish = false
 
 [dependencies]
+# Web Portal Dependency (Required for main.rs web state definitions)
+axum = "0.7"
 
 # Async Runtime & Concurrency
 tokio = { version = "1.35", features = ["full", "tracing"] }
 futures-util = "0.3.30"
 
-# Solana Core Cryptography & RPC 
-# (Aligned to v1.18.x to interface flawlessly with your existing RpcClient code)
+# Solana Core Cryptography & RPC (Safe v2.0+ Release Layer)
 solana-sdk = "=2.1.13"
 solana-client = "=2.1.13"
 solana-transaction-status = "=2.1.13"
 solana-account-decoder = "=2.1.13"
-# Yellowstone Geyser (Matched exactly to Triton's official repository matrix definitions)
-yellowstone-grpc-client = "13.1.0"
-yellowstone-grpc-proto = "=12.2.0"
 
-axum = "0.7"
+# Yellowstone Geyser
+yellowstone-grpc-client = "13.1.0"
+yellowstone-grpc-proto = "12.4.0"
+
 # External HTTP & Serialization
 reqwest = { version = "0.12.0", default-features = false, features = ["json", "rustls-tls", "charset"] }
 serde = { version = "1.0.197", features = ["derive"] }
@@ -41,11 +42,8 @@ rand = "0.8.5"
 # PRODUCTION COMPILER PROFILES (LATENCY & SIZE OPTIMIZATIONS)
 # =========================================================
 [profile.release]
-opt-level = 3          # Maximum speed optimization
-lto = "fat"            # Link Time Optimization across all crates
-codegen-units = 1      # Reduces parallel code generation in favor of execution speed
-panic = "abort"        # Drops the stack unwinding payload to save binary weight
-strip = true           # Removes debug symbols from the compiled executable to reduce size
-
-[patch.crates-io]
-alloc-stdlib = { git = "https://github.com/dropbox/rust-alloc-stdlib.git", rev = "09bebc9" }
+opt-level = 3          
+lto = "fat"            
+codegen-units = 1      
+panic = "abort"        
+strip = true           
