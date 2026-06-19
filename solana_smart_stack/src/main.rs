@@ -50,7 +50,7 @@ struct AppState {
 struct LogEntry {
     timestamp: u64,
     slot_submitted: u64,
-    commitment_progression: String, // e.g., "Submitted -> Processed -> Confirmed"
+    commitment_progression: String,
     tip_lamports: u64,
     latency_ms: u64,
     bundle_id: Option<String>,
@@ -189,7 +189,11 @@ async fn main() -> Result<()> {
 
     // 2. Extract and Parse Environment Context Variables
     let solana_rpc_url = std::env::var("SOLANA_RPC_URL").context("Missing SOLANA_RPC_URL in .env")?;
+    
+    // Splitting the Jito execution variables for correct routing
     let jito_rpc_url = std::env::var("JITO_RPC_URL").context("Missing JITO_RPC_URL in .env")?;
+    let jito_bundle_url = std::env::var("JITO_BUNDLE_URL").context("Missing JITO_BUNDLE_URL in .env")?;
+    
     let yellowstone_grpc_url = std::env::var("YELLOWSTONE_GRPC_URL").context("Missing YELLOWSTONE_GRPC_URL in .env")?;
     let yellowstone_x_token = std::env::var("YELLOWSTONE_X_TOKEN").unwrap_or_default();
     let openrouter_api_key = std::env::var("OPENROUTER_API_KEY").context("Missing OPENROUTER_API_KEY in .env")?;
@@ -203,8 +207,12 @@ async fn main() -> Result<()> {
 
     // 3. Connect to Shared Communication Channels
     let solana_rpc = Arc::new(RpcClient::new(solana_rpc_url));
-    let executor = JitoExecutor::new(jito_rpc_url, Arc::clone(&solana_rpc));
-    let ai_agent = AIAgent::new(openrouter_api_key);
+    
+    // Passing both Jito URLs to the executor struct
+    let executor = JitoExecutor::new(jito_rpc_url, jito_bundle_url, Arc::clone(&solana_rpc));
+    
+    // Wrap AIAgent in an Arc if it needs to be shared across threads or scaled later
+    let ai_agent = Arc::new(AIAgent::new(openrouter_api_key)); 
     let mut geyser_monitor = GeyserStreamMonitor::new(&yellowstone_grpc_url, &yellowstone_x_token, wallet_pubkey).await?;
 
     // =========================================================================
@@ -278,6 +286,7 @@ async fn main() -> Result<()> {
                 error!("❌ Bundle execution rejected on submission layer: {}", error_string);
 
                 // 6. Invoke AI Reasoning Gateway for Failure Analysis
+                // UPDATED: Implementing graceful fallback if the AI agent encounters an API issue
                 match ai_agent.analyze_failure(&error_string, target_tip).await {
                     Ok(strategy) => {
                         if strategy.action == "RETRY" {
@@ -322,7 +331,9 @@ async fn main() -> Result<()> {
                         }
                     }
                     Err(ai_err) => {
-                        error!("🚨 Critical system block break: Reasoning engine failed to resolve strategy mapping: {}", ai_err);
+                        // FIXED: Do not let OpenRouter network faults crash the background loop. Gracefully skip and continue.
+                        warn!("⚠️ AI Agent connectivity or parsing failure ({}). Defaulting to safety abort for this run block.", ai_err);
+                        continue;
                     }
                 }
             }

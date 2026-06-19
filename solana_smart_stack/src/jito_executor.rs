@@ -16,25 +16,27 @@ use tracing::{debug, info, warn};
 
 /// High-performance execution core for compiling and submitting Jito Bundles.
 pub struct JitoExecutor {
-    jito_rpc_url: String,
+    jito_rpc_url: String,     // Exclusively used for state queries (e.g., getTipAccounts)
+    jito_bundle_url: String,  // Exclusively used for POST submissions (e.g., sendBundle)
     http_client: Client,
     solana_rpc: Arc<RpcClient>,
 }
 
 impl JitoExecutor {
-    /// Initializes a new JitoExecutor with connection pooling enabled via reqwest.
-    pub fn new(jito_rpc_url: String, solana_rpc: Arc<RpcClient>) -> Self {
+    /// Initializes a new JitoExecutor with the dual-routing network configuration.
+    pub fn new(jito_rpc_url: String, jito_bundle_url: String, solana_rpc: Arc<RpcClient>) -> Self {
         Self {
             jito_rpc_url,
+            jito_bundle_url,
             http_client: Client::new(),
             solana_rpc,
         }
     }
 
     /// Fetches live Jito tip accounts dynamically via JSON-RPC.
-    /// This satisfies the bounty requirement: "Real recent tip account data"
+    /// Safely routes to the standard RPC endpoint to avoid JSON parsing crashes on the POST-only bundle route.
     pub async fn fetch_tip_accounts(&self) -> Result<Vec<Pubkey>> {
-        debug!("🔄 Fetching live Jito tip accounts...");
+        debug!("🎯 Fetching live Jito tip accounts...");
         
         let payload = json!({
             "jsonrpc": "2.0",
@@ -43,6 +45,7 @@ impl JitoExecutor {
             "params": []
         });
 
+        // FIXED: Routes strictly to self.jito_rpc_url 
         let response = self.http_client.post(&self.jito_rpc_url)
             .json(&payload)
             .send()
@@ -67,9 +70,8 @@ impl JitoExecutor {
     }
 
     /// Calculates a dynamic tip based on recent prioritization fees from the Solana network.
-    /// This satisfies the bounty requirement: "Current network conditions / No hardcoded tip values"
     pub fn calculate_dynamic_tip(&self) -> Result<u64> {
-        debug!("📊 Calculating dynamic tip floor based on network congestion...");
+        debug!("💸 Calculating dynamic tip floor based on network congestion...");
         
         let fees = self.solana_rpc.get_recent_prioritization_fees(&[])?;
         if fees.is_empty() {
@@ -102,7 +104,7 @@ impl JitoExecutor {
         let mut rng = rand::thread_rng();
         let tip_account = tip_accounts.choose(&mut rng).context("No tip accounts available")?;
 
-        info!("💸 Injecting Dynamic Tip: {} lamports | Target: {}", tip_amount, tip_account);
+        info!("💎 Injecting Dynamic Tip: {} lamports | Target: {}", tip_amount, tip_account);
 
         // 1. Core Instruction: 0-lamport self transfer 
         // (Allows us to push txs on Devnet without burning real SOL balance)
@@ -146,7 +148,9 @@ impl JitoExecutor {
         });
 
         debug!("🚀 Transmitting bundle to Frankfurt Block Engine...");
-        let response = self.http_client.post(&self.jito_rpc_url)
+        
+        // FIXED: Routes the bundle execution strictly to the JITO_BUNDLE_URL
+        let response = self.http_client.post(&self.jito_bundle_url)
             .json(&payload)
             .send()
             .await?
@@ -158,7 +162,7 @@ impl JitoExecutor {
             let err_msg = err["message"].as_str().unwrap_or("Unknown simulation error");
             warn!("🛑 Bundle Simulation Failed: {}", err_msg);
             
-            // This is critical: We throw the error so `main.rs` can catch it and pass it to OpenRouter
+            // Throw the error so `main.rs` can catch it and pass it to OpenRouter
             anyhow::bail!("{}", err_msg);
         }
 
@@ -167,7 +171,7 @@ impl JitoExecutor {
             .context("Valid bundle_id not found in successful response")?
             .to_string();
             
-        info!("📦 Bundle dispatched successfully! Inflight ID: {}", bundle_id);
+        info!("✅ Bundle dispatched successfully! Inflight ID: {}", bundle_id);
 
         Ok(bundle_id)
     }

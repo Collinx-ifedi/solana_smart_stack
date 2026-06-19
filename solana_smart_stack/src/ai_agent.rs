@@ -1,8 +1,12 @@
 use anyhow::{Context, Result};
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use tracing::{debug, info, warn};
+
+// =========================================================================
+// INTERNAL SYSTEM STRATEGY SCHEMA
+// =========================================================================
 
 /// System-level action instructions parsed from AI reasoning.
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -12,6 +16,37 @@ pub struct RecoveryStrategy {
     pub modified_tip: u64,          // Dynamic tip recalculation adjustment in lamports
     pub reasoning: String,          // The underlying logic or root cause classification
 }
+
+// =========================================================================
+// OPENROUTER API RESPONSE SCHEMAS
+// =========================================================================
+
+#[derive(Deserialize, Debug)]
+struct OpenRouterResponse {
+    // Made optional because OpenRouter replaces this with an 'error' block during rate limits/faults
+    choices: Option<Vec<OpenRouterChoice>>, 
+    error: Option<OpenRouterError>,
+}
+
+#[derive(Deserialize, Debug)]
+struct OpenRouterChoice {
+    message: OpenRouterMessage,
+}
+
+#[derive(Deserialize, Debug)]
+struct OpenRouterMessage {
+    // Explicit Option wrapper to prevent panics if OpenRouter returns null message payloads
+    content: Option<String>, 
+}
+
+#[derive(Deserialize, Debug)]
+struct OpenRouterError {
+    message: String,
+}
+
+// =========================================================================
+// AGENT ENGINE
+// =========================================================================
 
 /// The Autonomous AI Agent Engine handling failure log telemetry.
 pub struct AIAgent {
@@ -31,11 +66,10 @@ impl AIAgent {
     }
 
     /// Analyzes a raw failure string and decides on a machine-executable recovery strategy.
-    /// This satisfies Requirement 4: "Failure Reasoning / Autonomous Retry with Fault Injection"
     pub async fn analyze_failure(&self, raw_log: &str, current_tip: u64) -> Result<RecoveryStrategy> {
         info!("🧠 AI Agent triggered. Ingesting failure telemetry log...");
 
-        // Construct a highly restrictive system prompt to guarantee clean JSON output without text fluff
+        // Construct a highly restrictive system prompt to guarantee clean JSON output
         let system_prompt = "You are an autonomous Solana validator-level core system infrastructure agent. \
             Analyze the provided transaction failure log string and output a strict raw JSON schema mapping the recovery strategy. \
             Your response must be exclusively valid JSON matching the exact schema keys without markdown code block wrappers (do not use ```json). \
@@ -51,51 +85,68 @@ impl AIAgent {
         );
 
         let payload = json!({
-            "model": "meta/Llama 4 marvick:free",
+            "model": "meta-llama/llama-4-maverick", // Updated to the exact model mapping seen in your NLP handler framework
             "messages": [
                 { "role": "system", "content": system_prompt },
                 { "role": "user", "content": user_prompt }
             ],
-            "temperature": 0.1 // Extremely low temperature to enforce strict deterministic compliance
+            "temperature": 0.1, // Extremely low temperature to enforce strict deterministic compliance
+            "max_tokens": 512
         });
 
         debug!("📡 Forwarding telemetry matrix to OpenRouter...");
+        
         let response = self.http_client.post(&self.model_endpoint)
             .header("Authorization", format!("Bearer {}", self.api_key))
-            .header("HTTP-Referer", "[https://superteam.earn](https://superteam.earn)") // OpenRouter analytics tracking requirement
+            .header("HTTP-Referer", "http://localhost") 
+            .header("X-Title", "AlphaMind Assistant Recovery Agent")
             .json(&payload)
             .send()
             .await
-            .context("Failed to execute network request to OpenRouter API")?
-            .json::<Value>()
-            .await
-            .context("Failed to parse OpenRouter JSON payload")?;
+            .context("Failed to execute network request to OpenRouter API")?;
 
-        // Extract the textual content choice from the chat completion response array
-        let raw_content = response["choices"][0]["message"]["content"]
-            .as_str()
+        // Extract raw text before JSON deserialization to enable safe parsing
+        let raw_body = response.text().await.context("Failed to read raw body text from OpenRouter")?;
+
+        // Safely map the returned JSON into our strict structural definition
+        let parsed_payload = serde_json::from_str::<OpenRouterResponse>(&raw_body)
+            .context("Failed to map JSON schema to OpenRouter token specification structure. The API response may be malformed.")?;
+
+        // 🛑 Explicit Interception: Handle OpenRouter gateway/billing/rate-limit faults
+        if let Some(api_err) = parsed_payload.error {
+            anyhow::bail!("OpenRouter Gateway Error Intercepted: {}", api_err.message);
+        }
+
+        // Navigate the nested choice hierarchy safely
+        let raw_content = parsed_payload
+            .choices
+            .context("OpenRouter payload missing 'choices' array layer")?
+            .first()
+            .context("OpenRouter 'choices' array is empty")?
+            .message
+            .content
+            .as_ref()
             .context("Failed to locate target message content within OpenRouter payload metadata")?
-            .trim();
+            .trim()
+            .to_string();
 
         // 🧠 Robust Sanitation: Strip structural markdown blocks if the LLM leaked them despite system instructions
         let sanitized_content = if raw_content.starts_with("```json") {
             raw_content
                 .strip_prefix("```json")
-                .unwrap_or(raw_content)
-                .strip_suffix("
-```")
-                .unwrap_or(raw_content)
+                .unwrap_or(&raw_content)
+                .strip_suffix("```")
+                .unwrap_or(&raw_content)
                 .trim()
         } else if raw_content.starts_with("```") {
             raw_content
-                .strip_prefix("
-```")
-                .unwrap_or(raw_content)
+                .strip_prefix("```")
+                .unwrap_or(&raw_content)
                 .strip_suffix("```")
-                .unwrap_or(raw_content)
+                .unwrap_or(&raw_content)
                 .trim()
         } else {
-            raw_content
+            &raw_content
         };
 
         debug!("📝 AI Raw Cleaned Content: {}", sanitized_content);
