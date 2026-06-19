@@ -19,6 +19,9 @@ solana-client = "=2.1.13"
 solana-transaction-status = "=2.1.13"
 solana-account-decoder = "=2.1.13"
 
+# Jito JSON-RPC SDK
+jito-sdk-rust = "0.2.1"
+
 # Yellowstone Geyser
 yellowstone-grpc-client = "13.1.0"
 yellowstone-grpc-proto = "12.4.0"
