@@ -63,6 +63,7 @@ impl GeyserStreamMonitor {
                 account_exclude: vec![],
                 account_required: vec![],
                 signature: None,
+                token_accounts: vec![], // FIX: Initialized the missing required field for the transaction filter struct
             },
         );
 
