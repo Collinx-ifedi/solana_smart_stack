@@ -5,7 +5,7 @@ use solana_sdk::signature::Signature;
 use std::collections::HashMap;
 use std::time::Instant;
 use tracing::{debug, info, warn};
-use yellowstone_grpc_client::GeyserGrpcClient;
+use yellowstone_grpc_client::{ClientTlsConfig, GeyserGrpcClient}; // Added ClientTlsConfig for secure transport wrapping
 use yellowstone_grpc_proto::geyser::{
     subscribe_update::UpdateOneof, CommitmentLevel, SubscribeRequest,
     SubscribeRequestFilterTransactions,
@@ -23,9 +23,13 @@ impl GeyserStreamMonitor {
     pub async fn new(endpoint: &str, x_token: &str, wallet_pubkey: Pubkey) -> Result<Self> {
         info!("🔌 Connecting to Yellowstone gRPC at {}...", endpoint);
 
-        // Uses the modernized v13 builder pattern
+        // Uses the modernized v13 builder pattern wrapped with mandatory native gTLS configuration
         let client = GeyserGrpcClient::build_from_shared(endpoint.to_string())
             .context("Invalid gRPC endpoint URL structure configuration")?
+            // FIXED: Explicitly register the TLS Configuration Layer using local native security roots.
+            // This enables encrypted gTLS channel negotiation and fixes the HTTPS runtime crash.
+            .tls_config(ClientTlsConfig::new().with_native_roots())
+            .context("Failed to initialize secure TLS infrastructure settings for the gRPC channel")?
             .x_token(Some(x_token.to_string()))
             .context("Failed to assign authentication x-token payload mapping")?
             .connect()
