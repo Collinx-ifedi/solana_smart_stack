@@ -46,7 +46,7 @@ impl GeyserStreamMonitor {
         target_signature: &Signature,
         start_time: Instant,
     ) -> Result<u64> {
-        // Establishes the bidirectional communication streams 
+        // Establishes the bidirectional communication streams
         let (mut sink, mut stream) = self.client
             .subscribe()
             .await
@@ -63,7 +63,9 @@ impl GeyserStreamMonitor {
                 account_exclude: vec![],
                 account_required: vec![],
                 signature: None,
-                token_accounts: vec![], // FIX: Initialized the missing required field for the transaction filter struct
+                // SOLUTION: Use functional struct update syntax to cleanly assign protocol-dependent fields 
+                // like `token_accounts` automatically based on the underlying compiled crate version specifications.
+                ..Default::default()
             },
         );
 
